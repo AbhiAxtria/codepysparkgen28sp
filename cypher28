@@ -1,0 +1,22 @@
+// change the name here
+:param proc => 'run_ar_extract';
+
+MATCH path = (root)-[:CALLS*0..10]->(callee)
+WHERE (root:Procedure OR root:Function)
+  AND toLower(root.name) = toLower($proc)
+WITH path, callee,
+     nodes(path)[-2]         AS parent,
+     relationships(path)[-1] AS c
+OPTIONAL MATCH (callee)-[:ASSESSED_AS]->(a:MigrationAssessment)
+RETURN length(path)                                              AS level,
+       coalesce(parent.name, '-')                                AS parent,
+       c.seq                                                     AS call_order,
+       callee.name                                               AS callee,
+       CASE WHEN callee:External THEN 'External'
+            WHEN callee:Function THEN 'Function' ELSE 'Procedure' END AS type,
+       coalesce(a.decision, CASE WHEN callee:External THEN 'NOT IN CODE BASE' END) AS verdict,
+       reduce(s = '', i IN range(1, length(path)) | s + '    ') + callee.name AS tree
+ORDER BY [r IN relationships(path) | r.seq];
+
+
+
